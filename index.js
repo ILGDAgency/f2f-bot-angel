@@ -1,103 +1,68 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
-const dotenv = require("dotenv");
-const express = require("express");
+const { chromium } = require('playwright'); // ← Playwright gebruikt
+require('dotenv').config();
 
-dotenv.config();
-
-const COOKIE = process.env.F2F_COOKIE;
-const USERNAME = "littleangel1x";
-const HEADERS = {
-  "cookie": COOKIE,
-  "user-agent": "Mozilla/5.0",
-  "accept": "text/html",
-};
-
-const REACTIONS = [
+const COOKIES = JSON.parse(process.env.F2F_COOKIES || '[]');
+const COMMENTS = [
   "Wauw knapp🥰",
   "mooi 🥵",
   "lekkerdingg🙈",
   "sexyy zeg",
-  "oh wauw 🥵",
-  "lief 😘",
-  "cutiee 🥺",
-  "wat een plaatje 🥰",
-  "hottttt 🙈"
+  "oh wauw 🥵"
 ];
 
-const BASE_URL = "https://www.f2f.com";
+const USERNAME = process.env.F2F_USERNAME || "littleangel1x";
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function fetchExplorePosts() {
-  try {
-    const res = await axios.get(`${BASE_URL}/explore`, { headers: HEADERS });
-    const $ = cheerio.load(res.data);
-    const links = [];
-
-    $("a").each((_, el) => {
-      const href = $(el).attr("href");
-      if (href && href.includes("/post/") && !href.includes(USERNAME)) {
-        links.push(BASE_URL + href);
-      }
-    });
-
-    // Uniek maken en 85% selecteren
-    const unique = [...new Set(links)];
-    const selected = unique.slice(0, Math.floor(unique.length * 0.85));
-
-    return selected;
-  } catch (err) {
-    console.error("Fout bij ophalen explore:", err.message);
-    return [];
-  }
-}
-
-const reactedPosts = new Set();
-
-async function postReaction(postUrl) {
-  try {
-    const postIdMatch = postUrl.match(/\/post\/(\d+)/);
-    if (!postIdMatch) return;
-
-    const postId = postIdMatch[1];
-    if (reactedPosts.has(postId)) return;
-
-    const reaction = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
-
-    await axios.post(`${BASE_URL}/api/post/${postId}/comment`, {
-      content: reaction,
-    }, {
-      headers: {
-        ...HEADERS,
-        "content-type": "application/json"
-      }
-    });
-
-    console.log(`✅ Gereageerd op post ${postId}: "${reaction}"`);
-    reactedPosts.add(postId);
-    await delay(3000); // 3 seconden wachten tussen reacties
-  } catch (err) {
-    console.error("❌ Fout bij reageren:", err.message);
-  }
-}
-
-async function main() {
+async function runBot() {
   console.log("🔁 Bot gestart...");
 
-  const posts = await fetchExplorePosts();
-  for (const post of posts) {
-    await postReaction(post);
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+
+  // Voeg cookies toe
+  await context.addCookies(COOKIES);
+
+  const page = await context.newPage();
+  await page.goto('https://www.friends2follow.me/explore', { waitUntil: 'networkidle' });
+
+  // Wacht op posts
+  await page.waitForTimeout(5000);
+
+  const posts = await page.$$('[data-testid="post-link"]');
+  const ownUsername = USERNAME.toLowerCase();
+  const totalToReact = Math.floor(posts.length * 0.85);
+  let reacted = 0;
+
+  for (let i = 0; i < posts.length && reacted < totalToReact; i++) {
+    const post = posts[i];
+    const postHref = await post.getAttribute('href');
+    if (!postHref) continue;
+
+    const username = postHref.split('/')[1];
+    if (username.toLowerCase() === ownUsername) continue;
+
+    await page.goto(`https://www.friends2follow.me${postHref}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+
+    const alreadyCommented = await page.$(`text=${COMMENTS[0]}`);
+    if (alreadyCommented) continue;
+
+    const commentInput = await page.$('textarea');
+    const submitBtn = await page.$('button:has-text("Send")');
+
+    if (commentInput && submitBtn) {
+      const comment = COMMENTS[Math.floor(Math.random() * COMMENTS.length)];
+      await commentInput.fill(comment);
+      await submitBtn.click();
+      console.log(`💬 Gereageerd op ${postHref}: "${comment}"`);
+      reacted++;
+      await page.waitForTimeout(3000);
+    }
   }
 
   console.log("✅ Reactie-ronde voltooid!");
+  await browser.close();
 }
 
-// Elke 30 minuten runnen
-setInterval(main, 30 * 60 * 1000);
-main(); // direct ook starten bij launch
-
-// Nodige Express server voor Render
-const app = express();
-app.get("/", (_, res) => res.send("Angel-bot actief"));
-app.listen(process.env.PORT || 3000);
+// Draai elke 30 minuten
+runBot();
+setInterval(runBot, 1000 * 60 * 30);
