@@ -1,92 +1,103 @@
-const express = require('express');
-const axios = require('axios');
-require('dotenv').config();
+const axios = require("axios");
+const cheerio = require("cheerio");
+const dotenv = require("dotenv");
+const express = require("express");
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+dotenv.config();
 
-const COOKIES = process.env.F2F_COOKIES;
-const USERNAME = "littleangel1x"; // jouw gebruikersnaam
-
+const COOKIE = process.env.F2F_COOKIE;
+const USERNAME = "littleangel1x";
 const HEADERS = {
-  "Cookie": COOKIES,
-  "User-Agent": "Mozilla/5.0",
+  "cookie": COOKIE,
+  "user-agent": "Mozilla/5.0",
+  "accept": "text/html",
 };
 
-const COMMENTS = [
+const REACTIONS = [
   "Wauw knapp🥰",
   "mooi 🥵",
   "lekkerdingg🙈",
   "sexyy zeg",
   "oh wauw 🥵",
+  "lief 😘",
+  "cutiee 🥺",
+  "wat een plaatje 🥰",
+  "hottttt 🙈"
 ];
 
-// ➤ Explore ophalen
-async function fetchExplore() {
-  const res = await axios.get('https://api.friends2follow.me/posts/explore', {
-    headers: HEADERS,
-  });
-  return res.data;
-}
+const BASE_URL = "https://www.friends2follow.me";
 
-// ➤ Reactie plaatsen
-async function commentOnPosts() {
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function fetchExplorePosts() {
   try {
-    const posts = await fetchExplore();
+    const res = await axios.get(`${BASE_URL}/explore`, { headers: HEADERS });
+    const $ = cheerio.load(res.data);
+    const links = [];
 
-    if (!Array.isArray(posts)) {
-      console.error("❌ Unexpected post format:", posts);
-      return;
-    }
-
-    const limit = Math.floor(posts.length * 0.85);
-    const selectedPosts = posts.slice(0, limit);
-
-    const reactedIds = new Set();
-
-    for (const post of selectedPosts) {
-      const { id, user, has_commented } = post;
-      const isOwnPost = user?.username === USERNAME;
-
-      if (has_commented || isOwnPost || reactedIds.has(id)) {
-        continue;
+    $("a").each((_, el) => {
+      const href = $(el).attr("href");
+      if (href && href.includes("/post/") && !href.includes(USERNAME)) {
+        links.push(BASE_URL + href);
       }
+    });
 
-      const comment = COMMENTS[Math.floor(Math.random() * COMMENTS.length)];
+    // Uniek maken en 85% selecteren
+    const unique = [...new Set(links)];
+    const selected = unique.slice(0, Math.floor(unique.length * 0.85));
 
-      try {
-        await axios.post(`https://api.friends2follow.me/posts/${id}/comment`, {
-          content: comment,
-        }, {
-          headers: HEADERS,
-        });
-
-        console.log(`😇 Reactie geplaatst op post ${id}: "${comment}"`);
-        reactedIds.add(id);
-      } catch (err) {
-        console.error(`⚠️ Fout bij reageren op post ${id}:`, err?.response?.status || err?.message);
-      }
-    }
+    return selected;
   } catch (err) {
-    console.error("❌ Fout bij ophalen van explore posts:", err?.response?.status || err?.message);
+    console.error("Fout bij ophalen explore:", err.message);
+    return [];
   }
 }
 
-// ➤ Start de server + run direct + elke 30 min
-app.get('/', (req, res) => {
-  res.send('LittleAngel bot is running! 😇');
-});
+const reactedPosts = new Set();
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  commentOnPosts(); // direct bij opstarten
-  setInterval(commentOnPosts, 1000 * 60 * 30); // elke 30 minuten
-});
-// start meteen bij opstarten (voor debuggen en direct testen)
-start();
+async function postReaction(postUrl) {
+  try {
+    const postIdMatch = postUrl.match(/\/post\/(\d+)/);
+    if (!postIdMatch) return;
 
-// optioneel: hou alive met express (nodig voor sommige platforms)
-app.get('/', (req, res) => res.send('Bot is running...'));
-app.listen(process.env.PORT || 3000, () => {
-  console.log('✅ Express server draait');
-});
+    const postId = postIdMatch[1];
+    if (reactedPosts.has(postId)) return;
+
+    const reaction = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
+
+    await axios.post(`${BASE_URL}/api/post/${postId}/comment`, {
+      content: reaction,
+    }, {
+      headers: {
+        ...HEADERS,
+        "content-type": "application/json"
+      }
+    });
+
+    console.log(`✅ Gereageerd op post ${postId}: "${reaction}"`);
+    reactedPosts.add(postId);
+    await delay(3000); // 3 seconden wachten tussen reacties
+  } catch (err) {
+    console.error("❌ Fout bij reageren:", err.message);
+  }
+}
+
+async function main() {
+  console.log("🔁 Bot gestart...");
+
+  const posts = await fetchExplorePosts();
+  for (const post of posts) {
+    await postReaction(post);
+  }
+
+  console.log("✅ Reactie-ronde voltooid!");
+}
+
+// Elke 30 minuten runnen
+setInterval(main, 30 * 60 * 1000);
+main(); // direct ook starten bij launch
+
+// Nodige Express server voor Render
+const app = express();
+app.get("/", (_, res) => res.send("Angel-bot actief"));
+app.listen(process.env.PORT || 3000);
