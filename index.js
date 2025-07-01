@@ -1,5 +1,5 @@
 process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
-const { chromium } = require('playwright'); // ← Playwright gebruikt
+const { chromium } = require('playwright-core'); // ← Playwright gebruikt
 require('dotenv').config();
 
 const COOKIES = JSON.parse(process.env.F2F_COOKIES || '[]');
