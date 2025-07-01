@@ -1,14 +1,13 @@
 {
   "name": "f2f-bot-angel",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "postinstall": "npx playwright-core install chromium"
+    "postinstall": "npx playwright install --with-deps"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "playwright-core": "^1.43.1"
+    "playwright": "^1.43.1"
   }
 }
