@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: f2f-bot-angel
+    env: node
+    buildCommand: npm install && npx playwright install --with-deps
+    startCommand: node index.js
+    plan: free
