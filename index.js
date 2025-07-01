@@ -25,7 +25,7 @@ const REACTIONS = [
   "hottttt 🙈"
 ];
 
-const BASE_URL = "https://www.f2f.com/explore";
+const BASE_URL = "https://www.f2f.com";
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
