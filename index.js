@@ -82,3 +82,13 @@ app.listen(PORT, () => {
   commentOnPosts(); // direct bij opstarten
   setInterval(commentOnPosts, 1000 * 60 * 30); // elke 30 minuten
 });
+// start meteen bij opstarten (voor debuggen en direct testen)
+start();
+
+// optioneel: hou alive met express (nodig voor sommige platforms)
+const express = require('express');
+const app = express();
+app.get('/', (req, res) => res.send('Bot is running...'));
+app.listen(process.env.PORT || 3000, () => {
+  console.log('✅ Express server draait');
+});
