@@ -4,7 +4,8 @@
   "description": "Reactiebot voor Friends2Follow",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+  "build": "npx playwright install --with-deps"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
