@@ -1,7 +1,7 @@
 {
   "name": "f2f-bot-angel",
   "version": "1.0.0",
-  "description": "Friends2Follow Bot for LittleAngel",
+  "description": "Friends2Follow comment bot for Angel",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
